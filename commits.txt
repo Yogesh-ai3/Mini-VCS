@@ -1,0 +1,24 @@
+HASH: index file added-1761995334
+MESSAGE: index file added
+DATE: Sat Nov  1 16:38:54 2025
+FILES:
+  index -> hello
+-----------------------
+HASH: d "/Users/macy_lsp/Documents/Project/" && /opt/homebrew/bin/gcc-15 Minigit.c -o Minigit && ./Minigi-1761996101
+MESSAGE: d "/Users/macy_lsp/Documents/Project/" && /opt/homebrew/bin/gcc-15 Minigit.c -o Minigit && ./Minigi
+DATE: Sat Nov  1 16:51:41 2025
+FILES:
+  index -> hello
+-----------------------
+HASH: -1761996101
+MESSAGE: 
+DATE: Sat Nov  1 16:51:41 2025
+FILES:
+  index -> hello
+-----------------------
+HASH: Initial commit-1761995293
+MESSAGE: Initial commit
+DATE: Sat Nov  1 16:38:13 2025
+FILES:
+  index -> hello
+-----------------------
