@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "index.h"
 
 #define HASH_SIZE 101
 
@@ -9,7 +10,7 @@
 typedef struct FileVersion
 {
     char *filename;
-    char *content;
+    char *path;
     struct FileVersion *next;
 } FileVersion;
 
@@ -36,7 +37,6 @@ Commit *commitTable[HASH_SIZE];
 Branch *branches = NULL;
 Branch *currentBranch = NULL;
 FileVersion *stagingArea = NULL;
-
 
 /* ===================== HELPERS ===================== */
 unsigned int hashFunc(const char *str)
@@ -76,36 +76,36 @@ Commit *findCommit(const char *hash)
 }
 
 /* ===================== FILE HANDLING ===================== */
-FileVersion *copyFiles(FileVersion *head)
-{
-    if (!head)
-        return NULL;
-    FileVersion *newHead = NULL, *tail = NULL;
-    while (head)
-    {
-        FileVersion *node = malloc(sizeof(FileVersion));
-        node->filename = strdup(head->filename);
-        node->content = strdup(head->content);
-        node->next = NULL;
-        if (!newHead)
-            newHead = tail = node;
-        else
-        {
-            tail->next = node;
-            tail = node;
-        }
-        head = head->next;
+void restoreFilesFromCommit(Commit *c) {
+    if (!c) return;
+    char folder[256];
+    snprintf(folder, sizeof(folder), ".minigit/%s", c->hash);
+    for (FileVersion *f = c->files; f; f = f->next) {
+        char srcpath[256];
+        snprintf(srcpath, sizeof(srcpath), "%s/%s", folder, f->filename);
+        FILE *src = fopen(srcpath, "r");
+        FILE *dst = fopen(f->filename, "w");
+        if (!src || !dst) continue;
+
+        char ch;
+        while ((ch = fgetc(src)) != EOF)
+            fputc(ch, dst);
+
+        fclose(src);
+        fclose(dst);
     }
-    return newHead;
+    printf("📂 Restored files from commit %s\n", c->hash);
 }
+
 
 void addFile(FileVersion **head, const char *fname, const char *content)
 {
     FileVersion *node = malloc(sizeof(FileVersion));
     node->filename = strdup(fname);
-    node->content = strdup(content);
+    node->path = strdup(fname); // assuming file exists in working directory
     node->next = *head;
     *head = node;
+    printf("📄 Tracked file '%s'\n", fname);
 }
 
 /* ===================== COMMIT SYSTEM ===================== */
@@ -134,6 +134,7 @@ void commit(const char *msg)
     Commit *parent[1] = {currentBranch->head};
     FileVersion *files = currentBranch->head ? copyFiles(currentBranch->head->files) : NULL;
     Commit *newCommit = createCommit(msg, parent, 1, files);
+    saveCommitFiles(newCommit);
     currentBranch->head = newCommit;
     printf(" Commit created: %s\n", newCommit->hash);
 }
@@ -158,6 +159,7 @@ void checkout(const char *name)
         {
             currentBranch = b;
             printf("🔁 Switched to branch '%s'\n", name);
+            restoreFilesFromCommit(currentBranch->head);
             return;
         }
         b = b->next;
@@ -186,6 +188,25 @@ void mergeBranches(const char *name1, const char *name2, const char *msg)
 }
 
 /* ===================== DISPLAY FUNCTIONS ===================== */
+void listBranches(Branch *branches, Branch *current) {
+    printf("\nBranches:\n");
+    for (Branch *b = branches; b; b = b->next)
+        printf("%s%s\n", (b == current ? "* " : "  "), b->name);
+}
+
+void showBranchCommits(Branch *branches) {
+    for (Branch *b = branches; b; b = b->next) {
+        printf("\nBranch: %s\n", b->name);
+        for (Commit *c = b->head; c; ) {
+            printf("  %s -> ", c->message);
+            c = (c->parent_count ? c->parents[0] : NULL)
+        }
+        printf("NULL\n");
+    }
+}
+
+
+
 void showFiles(FileVersion *f)
 {
     while (f)
@@ -208,34 +229,29 @@ void logCommits(Commit *c)
 }
 
 /* ===================== SAVE COMMITS TO FILE ===================== */
-void saveCommitsToFile()
+void saveCommitFiles(Commit *c)
 {
-    FILE *fp = fopen("commits.txt", "w");
-    if (fp==NULL)
-    {
-        printf("❌ Could not open file.\n");
-        return;
-    }
+    char folder[256];
+    snprintf(folder, sizeof(folder), ".minigit/%s", c->hash);
+    make_dir(".minigit");
+    make_dir(folder);
 
-    for (int i = 0; i < HASH_SIZE; i++)
+    for (FileVersion *f = c->files; f; f = f->next)
     {
-        Commit *curr = commitTable[i];
-        while (curr)
-        {
-            fprintf(fp, "HASH: %s\nMESSAGE: %s\nDATE: %s\nFILES:\n", curr->hash, curr->message, curr->timestamp);
-            FileVersion *f = curr->files;
-            while (f)
-            {
-                fprintf(fp, "  %s -> %s\n", f->filename, f->content);
-                f = f->next;
-            }
-            fprintf(fp, "-----------------------\n");
-            curr = curr->next;
-        }
-    }
+        char dest[256];
+        snprintf(dest, sizeof(dest), "%s/%s", folder, f->filename);
+        FILE *src = fopen(f->path, "r");
+        FILE *dst = fopen(dest, "w");
+        if (!src || !dst)
+            continue;
 
-    fclose(fp);
-    printf("💾 Commits saved to commits.txt\n");
+        char ch;
+        while ((ch = fgetc(src)) != EOF)
+            fputc(ch, dst);
+
+        fclose(src);
+        fclose(dst);
+    }
 }
 
 /* ===================== INIT REPO ===================== */
@@ -252,7 +268,6 @@ void initRepo()
     currentBranch = master;
     printf("📦 Repository initialized (branch: master)\n");
 }
-
 
 /* ===================== CLI MENU ===================== */
 void menu()
