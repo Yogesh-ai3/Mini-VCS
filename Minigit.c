@@ -3,12 +3,12 @@
 #include <string.h>
 #include <time.h>
 #ifdef _WIN32
-    #include <direct.h>
-    #define make_dir(name) _mkdir(name)
+#include <direct.h>
+#define make_dir(name) _mkdir(name)
 #else
-    #include <sys/stat.h>
-    #include <sys/types.h>
-    #define make_dir(name) mkdir(name, 0777)
+#include <sys/stat.h>
+#include <sys/types.h>
+#define make_dir(name) mkdir(name, 0777)
 #endif
 
 #define HASH_SIZE 101
@@ -17,7 +17,6 @@
 typedef struct FileVersion
 {
     char *filename;
-    char *path;
     struct FileVersion *next;
 } FileVersion;
 
@@ -44,6 +43,7 @@ Commit *commitTable[HASH_SIZE];
 Branch *branches = NULL;
 Branch *currentBranch = NULL;
 FileVersion *stagingArea = NULL;
+void saveCommitFiles(Commit *c);
 
 /* ===================== HELPERS ===================== */
 unsigned int hashFunc(const char *str)
@@ -83,16 +83,20 @@ Commit *findCommit(const char *hash)
 }
 
 /* ===================== FILE HANDLING ===================== */
-void restoreFilesFromCommit(Commit *c) {
-    if (!c) return;
+void restoreFilesFromCommit(Commit *c)
+{
+    if (!c)
+        return;
     char folder[256];
     snprintf(folder, sizeof(folder), ".minigit/%s", c->hash);
-    for (FileVersion *f = c->files; f; f = f->next) {
+    for (FileVersion *f = c->files; f; f = f->next)
+    {
         char srcpath[256];
         snprintf(srcpath, sizeof(srcpath), "%s/%s", folder, f->filename);
         FILE *src = fopen(srcpath, "r");
         FILE *dst = fopen(f->filename, "w");
-        if (!src || !dst) continue;
+        if (!src || !dst)
+            continue;
 
         char ch;
         while ((ch = fgetc(src)) != EOF)
@@ -104,12 +108,10 @@ void restoreFilesFromCommit(Commit *c) {
     printf("📂 Restored files from commit %s\n", c->hash);
 }
 
-
-void addFile(FileVersion **head, const char *fname, const char *content)
+void addFile(FileVersion **head, const char *fname)
 {
     FileVersion *node = malloc(sizeof(FileVersion));
     node->filename = strdup(fname);
-    node->path = strdup(fname); // assuming file exists in working directory
     node->next = *head;
     *head = node;
     printf("📄 Tracked file '%s'\n", fname);
@@ -130,7 +132,7 @@ Commit *createCommit(const char *msg, Commit **parents, int parent_count, FileVe
     snprintf(buf, sizeof(buf), "%s-%ld", msg, time(NULL));
     c->hash = strdup(buf);
 
-    c->files = copyFiles(files);
+    c->files = files;
     c->next = NULL;
     insertCommit(c);
     return c;
@@ -139,7 +141,7 @@ Commit *createCommit(const char *msg, Commit **parents, int parent_count, FileVe
 void commit(const char *msg)
 {
     Commit *parent[1] = {currentBranch->head};
-    FileVersion *files = currentBranch->head ? copyFiles(currentBranch->head->files) : NULL;
+    FileVersion *files = currentBranch->head ? currentBranch->head->files : NULL;
     Commit *newCommit = createCommit(msg, parent, 1, files);
     saveCommitFiles(newCommit);
     currentBranch->head = newCommit;
@@ -188,23 +190,27 @@ void mergeBranches(const char *name1, const char *name2, const char *msg)
     }
 
     Commit *parents[2] = {b1->head, b2->head};
-    FileVersion *files = copyFiles(b1->head->files);
+    FileVersion *files = b1->head->files;
     Commit *merged = createCommit(msg, parents, 2, files);
     currentBranch->head = merged;
     printf(" Merged '%s' and '%s' into new commit %s\n", name1, name2, merged->hash);
 }
 
 /* ===================== DISPLAY FUNCTIONS ===================== */
-void listBranches(Branch *branches, Branch *current) {
+void listBranches(Branch *branches, Branch *current)
+{
     printf("\nBranches:\n");
     for (Branch *b = branches; b; b = b->next)
         printf("%s%s\n", (b == current ? "* " : "  "), b->name);
 }
 
-void showBranchCommits(Branch *branches) {
-    for (Branch *b = branches; b; b = b->next) {
+void showBranchCommits(Branch *branches)
+{
+    for (Branch *b = branches; b; b = b->next)
+    {
         printf("\nBranch: %s\n", b->name);
-        for (Commit *c = b->head; c; ) {
+        for (Commit *c = b->head; c;)
+        {
             printf("  %s -> ", c->message);
             c = (c->parent_count ? c->parents[0] : NULL);
         }
@@ -212,10 +218,10 @@ void showBranchCommits(Branch *branches) {
     }
 }
 
-
-
-void showFiles(FileVersion *head, const char *commitHash) {
-    for (FileVersion *f = head; f; f = f->next) {
+void showFiles(FileVersion *head, const char *commitHash)
+{
+    for (FileVersion *f = head; f; f = f->next)
+    {
         printf("📄 %s:\n", f->filename);
 
         // Build full path: .minigit/<commitHash>/<filename>
@@ -223,7 +229,8 @@ void showFiles(FileVersion *head, const char *commitHash) {
         snprintf(path, sizeof(path), ".minigit/%s/%s", commitHash, f->filename);
 
         FILE *fp = fopen(path, "r");
-        if (!fp) {
+        if (!fp)
+        {
             printf("   (file missing on disk)\n");
             continue;
         }
@@ -236,14 +243,13 @@ void showFiles(FileVersion *head, const char *commitHash) {
     }
 }
 
-
 void logCommits(Commit *c)
 {
     if (!c)
         return;
     printf("\nCommit: %s\nMessage: %s\nDate: %s\n", c->hash, c->message, c->timestamp);
     printf("Files:\n");
-    showFiles(c->files,c->hash);
+    showFiles(c->files, c->hash);
     printf("-------------------------------\n");
     for (int i = 0; i < c->parent_count; i++)
         logCommits(c->parents[i]);
@@ -261,7 +267,7 @@ void saveCommitFiles(Commit *c)
     {
         char dest[256];
         snprintf(dest, sizeof(dest), "%s/%s", folder, f->filename);
-        FILE *src = fopen(f->path, "r");
+        FILE *src = fopen(f->filename, "r");
         FILE *dst = fopen(dest, "w");
         if (!src || !dst)
             continue;
@@ -299,7 +305,7 @@ void menu()
     while (1)
     {
         printf("\n=== MiniGit Menu ===\n");
-        printf("1. Add File\n2. Commit\n3. Log\n4. Create Branch\n5. Checkout Branch\n6. Merge Branches\n7. Search Commit by Hash\n8. Save Commits to File\n9. Exit\nChoice: ");
+        printf("1. Add File\n2. Commit\n3. Log\n4. Create Branch\n5. Checkout Branch\n6. Merge Branches\n7. Search Commit by Hash\n8. List Branches\n9.Show Commits by Branch\n10.Exit\nChoice: ");
         scanf("%d", &choice);
         getchar();
 
@@ -309,10 +315,7 @@ void menu()
             printf("Enter filename: ");
             fgets(fname, sizeof(fname), stdin);
             fname[strcspn(fname, "\n")] = 0;
-            printf("Enter content: ");
-            fgets(content, sizeof(content), stdin);
-            content[strcspn(content, "\n")] = 0;
-            addFile(&currentBranch->head->files, fname, content);
+            addFile(&currentBranch->head->files, fname);
             printf("📄 File '%s' added.\n", fname);
             break;
 
@@ -363,7 +366,7 @@ void menu()
             if (found)
             {
                 printf("\n🔎 Commit found!\nMessage: %s\nDate: %s\nFiles:\n", found->message, found->timestamp);
-                showFiles(found->files,found->hash);
+                showFiles(found->files, found->hash);
             }
             else
             {
@@ -371,11 +374,15 @@ void menu()
             }
             break;
 
+        
+
         case 8:
-            saveCommitsToFile();
-            break;
+            listBranches(branches, currentBranch);
 
         case 9:
+            showBranchCommits(branches);
+
+        case 10:
             printf("Exiting MiniGit...\n");
             return;
 
