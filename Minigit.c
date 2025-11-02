@@ -2,7 +2,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include "index.h"
+#ifdef _WIN32
+    #include <direct.h>
+    #define make_dir(name) _mkdir(name)
+#else
+    #include <sys/stat.h>
+    #include <sys/types.h>
+    #define make_dir(name) mkdir(name, 0777)
+#endif
 
 #define HASH_SIZE 101
 
@@ -199,7 +206,7 @@ void showBranchCommits(Branch *branches) {
         printf("\nBranch: %s\n", b->name);
         for (Commit *c = b->head; c; ) {
             printf("  %s -> ", c->message);
-            c = (c->parent_count ? c->parents[0] : NULL)
+            c = (c->parent_count ? c->parents[0] : NULL);
         }
         printf("NULL\n");
     }
@@ -207,14 +214,28 @@ void showBranchCommits(Branch *branches) {
 
 
 
-void showFiles(FileVersion *f)
-{
-    while (f)
-    {
-        printf("    %s -> \"%s\"\n", f->filename, f->content);
-        f = f->next;
+void showFiles(FileVersion *head, const char *commitHash) {
+    for (FileVersion *f = head; f; f = f->next) {
+        printf("📄 %s:\n", f->filename);
+
+        // Build full path: .minigit/<commitHash>/<filename>
+        char path[512];
+        snprintf(path, sizeof(path), ".minigit/%s/%s", commitHash, f->filename);
+
+        FILE *fp = fopen(path, "r");
+        if (!fp) {
+            printf("   (file missing on disk)\n");
+            continue;
+        }
+
+        char line[256];
+        while (fgets(line, sizeof(line), fp))
+            printf("   %s", line);
+        fclose(fp);
+        printf("\n----------------------\n");
     }
 }
+
 
 void logCommits(Commit *c)
 {
@@ -222,7 +243,7 @@ void logCommits(Commit *c)
         return;
     printf("\nCommit: %s\nMessage: %s\nDate: %s\n", c->hash, c->message, c->timestamp);
     printf("Files:\n");
-    showFiles(c->files);
+    showFiles(c->files,c->hash);
     printf("-------------------------------\n");
     for (int i = 0; i < c->parent_count; i++)
         logCommits(c->parents[i]);
@@ -342,7 +363,7 @@ void menu()
             if (found)
             {
                 printf("\n🔎 Commit found!\nMessage: %s\nDate: %s\nFiles:\n", found->message, found->timestamp);
-                showFiles(found->files);
+                showFiles(found->files,found->hash);
             }
             else
             {
