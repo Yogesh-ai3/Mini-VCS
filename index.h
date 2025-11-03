@@ -7,3 +7,4 @@
     #define make_dir(name) mkdir(name, 0777)
 #endif
 #define num 3
+#define mum 4

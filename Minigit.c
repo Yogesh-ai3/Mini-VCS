@@ -204,19 +204,28 @@ void listBranches(Branch *branches, Branch *current)
         printf("%s%s\n", (b == current ? "* " : "  "), b->name);
 }
 
-void showBranchCommits(Branch *branches)
-{
-    for (Branch *b = branches; b; b = b->next)
-    {
-        printf("\nBranch: %s\n", b->name);
-        for (Commit *c = b->head; c;)
-        {
-            printf("  %s -> ", c->message);
-            c = (c->parent_count ? c->parents[0] : NULL);
+void showBranchCommits() {
+    Branch *b = branches;
+    printf("\n=== Branch Commit Graph ===\n");
+    while (b) {
+        printf("\n🌿 %s\n", b->name);
+        Commit *c = b->head;
+        while (c) {
+            printf("   ├── %s (%s)\n", c->hash, c->message);
+            if (c->parent_count > 1) {
+                printf("   │    ↳ merge of ");
+                for (int i = 0; i < c->parent_count; i++)
+                    printf("[%s]%s", c->parents[i]->hash,
+                           i == c->parent_count - 1 ? "" : ", ");
+                printf("\n");
+            }
+            c = (c->parent_count > 0) ? c->parents[0] : NULL;
         }
-        printf("NULL\n");
+        b = b->next;
     }
+    printf("-----------------------------\n");
 }
+
 
 void showFiles(FileVersion *head, const char *commitHash)
 {
@@ -378,9 +387,11 @@ void menu()
 
         case 8:
             listBranches(branches, currentBranch);
+            break;
 
         case 9:
             showBranchCommits(branches);
+            break;
 
         case 10:
             printf("Exiting MiniGit...\n");
